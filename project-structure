@@ -1,0 +1,18 @@
+algo-trading/
+├── config/
+│   └── database.js
+├── models/
+│   ├── Trade.js
+│   └── Position.js
+├── services/
+│   ├── upstoxService.js
+│   └── tradingService.js
+├── utils/
+│   ├── logger.js
+│   └── optionUtils.js
+├── routes/
+│   └── tradingRoutes.js
+├── .env
+├── package.json
+├── server.js
+└── README.md 

@@ -1,0 +1,11 @@
+body {
+  margin: 0;
+  padding: 0;
+  background-color: #121212;
+  color: white;
+}
+
+.MuiTextField-root {
+  background-color: rgba(255, 255, 255, 0.05);
+  border-radius: 4px;
+} 
