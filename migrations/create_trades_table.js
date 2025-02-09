@@ -1,21 +1,88 @@
-exports.up = function(knex) {
-  return knex.schema.createTable('trades', table => {
-    table.increments('id').primary();
-    table.string('order_id').notNullable();
-    table.string('instrument').notNullable();
-    table.string('trade_type').notNullable(); // 'CALL' or 'PUT'
-    table.decimal('entry_price', 10, 2).notNullable();
-    table.decimal('exit_price', 10, 2);
-    table.decimal('quantity', 10, 2).notNullable();
-    table.decimal('profit_loss', 10, 2);
-    table.timestamp('entry_time').notNullable();
-    table.timestamp('exit_time');
-    table.string('status').notNullable(); // 'OPEN', 'CLOSED'
-    table.string('exit_reason'); // 'SL_HIT', 'TARGET_HIT', 'MANUAL'
-    table.timestamps(true, true);
-  });
-};
+'use strict';
 
-exports.down = function(knex) {
-  return knex.schema.dropTable('trades');
+const { DataTypes } = require('sequelize');
+
+module.exports = {
+  async up({ context: queryInterface }) {
+    await queryInterface.createTable('trades', {
+      id: {
+        type: DataTypes.INTEGER,
+        primaryKey: true,
+        autoIncrement: true
+      },
+      instrument_token: {
+        type: DataTypes.STRING,
+        allowNull: false
+      },
+      order_id: {
+        type: DataTypes.STRING,
+        allowNull: false
+      },
+      trade_type: {
+        type: DataTypes.STRING,
+        allowNull: false
+      },
+      entry_strike: {
+        type: DataTypes.STRING,
+        allowNull: false
+      },
+      entry_price: {
+        type: DataTypes.DECIMAL(10, 2),
+        allowNull: false
+      },
+      stop_loss: {
+        type: DataTypes.DECIMAL(10, 2),
+        allowNull: false
+      },
+      quantity: {
+        type: DataTypes.INTEGER,
+        allowNull: false
+      },
+      status: {
+        type: DataTypes.STRING,
+        allowNull: false
+      },
+      profit_loss: {
+        type: DataTypes.DECIMAL(10, 2),
+        allowNull: true
+      },
+      entry_time: {
+        type: DataTypes.DATE,
+        allowNull: false
+      },
+      exit_time: {
+        type: DataTypes.DATE,
+        allowNull: true
+      },
+      exit_reason: {
+        type: DataTypes.STRING,
+        allowNull: true
+      },
+      execution_count: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        defaultValue: 1
+      },
+      parent_trade_id: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+        references: {
+          model: 'trades',
+          key: 'id'
+        }
+      },
+      created_at: {
+        type: DataTypes.DATE,
+        allowNull: false
+      },
+      updated_at: {
+        type: DataTypes.DATE,
+        allowNull: false
+      }
+    });
+  },
+
+  async down({ context: queryInterface }) {
+    await queryInterface.dropTable('trades');
+  }
 }; 

@@ -1,5 +1,7 @@
 const { Sequelize } = require('sequelize');
 require('dotenv').config();
+const path = require('path');
+const { Umzug, SequelizeStorage } = require('umzug');
 
 // Create Sequelize instance
 const sequelize = new Sequelize(
@@ -18,15 +20,56 @@ const sequelize = new Sequelize(
   }
 );
 
-// Test the connection
-sequelize
-  .authenticate()
-  .then(() => {
-    console.log('Database connection established successfully.');
-  })
-  .catch(err => {
-    console.error('Unable to connect to the database:', err);
-  });
+// Run migrations
+const runMigrations = async () => {
+  try {
+    const umzug = new Umzug({
+      migrations: { 
+        glob: 'migrations/*.js',
+        resolve: ({ name, path, context }) => {
+          const migration = require(path);
+          return {
+            name,
+            up: async () => migration.up({ context }),
+            down: async () => migration.down({ context }),
+          };
+        },
+      },
+      context: sequelize.getQueryInterface(),
+      storage: new SequelizeStorage({ sequelize }),
+      logger: console,
+    });
+
+    const pending = await umzug.pending();
+    if (pending.length > 0) {
+      console.log('Pending migrations:', pending.map(m => m.name));
+      await umzug.up();
+      console.log('Migrations completed successfully');
+    } else {
+      console.log('No pending migrations');
+    }
+  } catch (error) {
+    console.error('Error running migrations:', error);
+    if (error.code === 'MODULE_NOT_FOUND') {
+      console.warn('Migration module not found. Skipping migrations.');
+    }
+  }
+};
+
+// Initialize database connection
+const initDatabase = async () => {
+  try {
+    await sequelize.authenticate();
+    console.log('Database connected.');
+    await runMigrations();
+  } catch (err) {
+    console.error('Unable to connect to database:', err);
+    throw err;
+  }
+};
+
+// Run initialization
+initDatabase();
 
 // Export only the sequelize instance
 module.exports = sequelize; 

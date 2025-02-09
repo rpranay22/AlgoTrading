@@ -5,12 +5,15 @@ const upstoxService = require('../services/upstoxService');
 const Trade = require('../models/Trade');
 const logger = require('../utils/logger');
 const tradeService = require('../services/tradeService');
+const websocketService = require('../services/websocketService');
 
-router.get('/status', async (req, res) => {
+router.get('/trading/status', async (req, res) => {
   try {
     const trades = await Trade.findAll({
       where: { status: 'OPEN' }
+
     });
+    console.log("trades>>>>",trades)
     res.json(trades);
   } catch (error) {
     logger.error('Error fetching trades:', error);
@@ -173,11 +176,13 @@ router.post('/trading/start', async (req, res) => {
 
 router.post('/trading/stop', async (req, res) => {
   try {
-    await tradingService.squareOffAllPositions();
-    res.json({ message: 'All positions squared off successfully' });
+    const result = await tradingService.squareOffAllPositions();
+    res.json(result);
   } catch (error) {
     logger.error('Error stopping trading:', error);
-    res.status(500).json({ error: 'Failed to stop trading' });
+    res.status(400).json({
+      error: error.message
+    });
   }
 });
 
@@ -242,7 +247,22 @@ router.post('/trading/single-order', async (req, res) => {
 router.get('/trades/history', async (req, res) => {
   try {
     const trades = await tradeService.getTradeHistory();
-    res.json(trades);
+    const formattedTrades = trades.map(trade => ({
+      id: trade.id,
+      instrumentToken: trade.instrumentToken,
+      orderId: trade.order_id,
+      type: trade.type,
+      entryStrike: trade.entry_strike,
+      entryPrice: trade.entryPrice,
+      stopLoss: trade.stopLoss,
+      quantity: trade.quantity,
+      status: trade.status,
+      profitLoss: trade.profit_loss,
+      entryTime: trade.entry_time,
+      exitTime: trade.exit_time,
+      exitReason: trade.exit_reason
+    }));
+    res.json(formattedTrades);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -261,6 +281,11 @@ router.get('/trades/pnl', async (req, res) => {
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
+});
+
+router.get('/socket-status', (req, res) => {
+  const status = websocketService.getSocketStatus();
+  res.json(status);
 });
 
 module.exports = router; 
