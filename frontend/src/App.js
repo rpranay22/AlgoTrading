@@ -5,7 +5,7 @@ import { styled } from '@mui/system';
 import axios from 'axios';
 import io from 'socket.io-client';
 import { Timeline, TimelineItem, TimelineSeparator, TimelineConnector, TimelineContent, TimelineDot } from '@mui/lab';
-import { TrendingUp, TrendingDown, Refresh, Settings, ShowChart, Assessment, Warning, CheckCircle, Error as ErrorIcon, FilterList, Search, Download, DateRange, ArrowUpward, ArrowDownward, History as HistoryIcon } from '@mui/icons-material';
+import { TrendingUp, TrendingDown, Refresh, Settings, ShowChart, Assessment, Warning, CheckCircle, Error as ErrorIcon, FilterList, Search, Download, DateRange, ArrowUpward, ArrowDownward, History as HistoryIcon, Stop } from '@mui/icons-material';
 import { 
   BarChart, Bar, 
   LineChart, Line, 
@@ -128,6 +128,10 @@ function App() {
     sortBy: 'date',
     sortOrder: 'desc'
   });
+  const [tradingStatus, setTradingStatus] = useState({
+    isTrading: false,
+    openTradesCount: 0
+  });
 
   // Update localStorage when price history changes
   useEffect(() => {
@@ -210,19 +214,64 @@ function App() {
 
   const handleStartTrading = async () => {
     try {
+      if (tradingStatus.isTrading) {
+        return;
+      }
+      
       await axios.post('http://localhost:3000/api/trading/start', settings);
-      setIsTrading(true);
+      const response = await axios.get('http://localhost:3000/api/trading/status');
+      setTradingStatus(response.data);
+      
+      setNotification({
+        open: true,
+        message: 'Trading started successfully',
+        type: 'success'
+      });
     } catch (error) {
-      console.error('Error starting trading:', error);
+      // Force refresh trading status on error
+      try {
+        const response = await axios.get('http://localhost:3000/api/trading/status');
+        setTradingStatus(response.data);
+      } catch (statusError) {
+        console.error('Error refreshing trading status:', statusError);
+      }
+
+      setNotification({
+        open: true,
+        message: error.response?.data?.error || 'Failed to start trading',
+        type: 'error'
+      });
     }
   };
 
   const handleStopTrading = async () => {
     try {
-      await axios.post('http://localhost:3000/api/trading/stop');
-      setIsTrading(false);
+      const response = await axios.post('http://localhost:3000/api/trading/stop');
+      
+      // Update trading status
+      const statusResponse = await axios.get('http://localhost:3000/api/trading/status');
+      setTradingStatus(statusResponse.data);
+      
+      // Show appropriate message based on response
+      setNotification({
+        open: true,
+        message: response.data.message,
+        type: response.data.success ? 'success' : 'info'
+      });
     } catch (error) {
-      console.error('Error stopping trading:', error);
+      // Force refresh trading status on error
+      try {
+        const statusResponse = await axios.get('http://localhost:3000/api/trading/status');
+        setTradingStatus(statusResponse.data);
+      } catch (statusError) {
+        console.error('Error refreshing trading status:', statusError);
+      }
+
+      setNotification({
+        open: true,
+        message: error.response?.data?.message || error.response?.data?.error || 'Failed to stop trading',
+        type: 'error'
+      });
     }
   };
 
@@ -248,20 +297,32 @@ function App() {
   useEffect(() => {
     const fetchTradeData = async () => {
       try {
-        const [historyRes, pnlRes] = await Promise.all([
-          axios.get('http://localhost:3000/api/trading/trades/history'),
-          axios.get('http://localhost:3000/api/trading/trades/pnl')
-        ]);
+        const historyRes = await axios.get('http://localhost:3000/api/trades/history');
         setTradeHistory(historyRes.data);
-        setPnL(pnlRes.data);
       } catch (error) {
-        console.error('Error fetching trade data:', error);
+        console.error('Error fetching trade history:', error);
       }
     };
 
     fetchTradeData();
     const interval = setInterval(fetchTradeData, 30000); // Update every 30 seconds
     return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    const fetchTradingStatus = async () => {
+      try {
+        const response = await axios.get('http://localhost:3000/api/trading/status');
+        setTradingStatus(response.data);
+      } catch (error) {
+        console.error('Error fetching trading status:', error);
+      }
+    };
+
+    fetchTradingStatus();
+    const statusInterval = setInterval(fetchTradingStatus, 5000); // Check every 5 seconds
+
+    return () => clearInterval(statusInterval);
   }, []);
 
   const SystemHealthCard = ({ isMobile }) => (
@@ -366,6 +427,25 @@ function App() {
         </Timeline>
       </CardContent>
     </Card>
+  );
+
+  const TradingStatusCard = ({ status }) => (
+    <Paper sx={{ p: 2, mb: 2 }}>
+      <Box display="flex" alignItems="center" justifyContent="space-between">
+        <Typography variant="h6">
+          Trading Status
+        </Typography>
+        <Chip
+          label={status.isTrading ? 'Active' : 'Inactive'}
+          color={status.isTrading ? 'success' : 'default'}
+        />
+      </Box>
+      {status.isTrading && (
+        <Typography variant="body2" color="text.secondary">
+          Open Trades: {status.openTradesCount}
+        </Typography>
+      )}
+    </Paper>
   );
 
   const AnalyticsView = ({ tradeHistory, tradingStats, isMobile }) => {
@@ -649,88 +729,76 @@ function App() {
         {/* Trade History Table */}
         <Card>
           <TableContainer>
-            <Table>
+            <Table size={isMobile ? "small" : "medium"}>
               <TableHead>
                 <TableRow>
-                  <TableCell>
-                    <TableSortLabel
-                      active={filters.sortBy === 'date'}
-                      direction={filters.sortOrder}
-                      onClick={() => setFilters(prev => ({
-                        ...prev,
-                        sortBy: 'date',
-                        sortOrder: prev.sortOrder === 'asc' ? 'desc' : 'asc'
-                      }))}
-                    >
-                      Date/Time
-                    </TableSortLabel>
-                  </TableCell>
-                  <TableCell>
-                    <TableSortLabel
-                      active={filters.sortBy === 'instrument'}
-                      direction={filters.sortOrder}
-                      onClick={() => setFilters(prev => ({
-                        ...prev,
-                        sortBy: 'instrument',
-                        sortOrder: prev.sortOrder === 'asc' ? 'desc' : 'asc'
-                      }))}
-                    >
-                      Instrument
-                    </TableSortLabel>
-                  </TableCell>
+                  <TableCell>Time</TableCell>
                   <TableCell>Type</TableCell>
-                  <TableCell align="right">Entry Price</TableCell>
-                  <TableCell align="right">Exit Price</TableCell>
-                  <TableCell align="right">
-                    <TableSortLabel
-                      active={filters.sortBy === 'profit'}
-                      direction={filters.sortOrder}
-                      onClick={() => setFilters(prev => ({
-                        ...prev,
-                        sortBy: 'profit',
-                        sortOrder: prev.sortOrder === 'asc' ? 'desc' : 'asc'
-                      }))}
-                    >
-                      P&L
-                    </TableSortLabel>
-                  </TableCell>
+                  <TableCell>Instrument</TableCell>
+                  <TableCell align="right">Entry</TableCell>
+                  <TableCell align="right">Exit</TableCell>
+                  <TableCell align="right">P&L</TableCell>
                   <TableCell>Status</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
-                {filteredTrades.map((trade) => (
-                  <TableRow key={trade.order_id}>
-                    <TableCell>{new Date(trade.entry_time).toLocaleString()}</TableCell>
-                    <TableCell>{trade.instrument}</TableCell>
-                    <TableCell>{trade.trade_type}</TableCell>
-                    <TableCell align="right">₹{trade.entry_price}</TableCell>
-                    <TableCell align="right">
-                      {trade.exit_price ? `₹${trade.exit_price}` : '-'}
-                    </TableCell>
-                    <TableCell 
-                      align="right"
-                      sx={{ 
-                        color: trade.profit_loss > 0 ? 'success.main' : 
-                               trade.profit_loss < 0 ? 'error.main' : 'text.primary'
-                      }}
-                    >
-                      {trade.profit_loss ? `₹${trade.profit_loss.toFixed(2)}` : '-'}
-                    </TableCell>
-                    <TableCell>
-                      <Chip 
-                        label={trade.status}
-                        color={trade.status === 'OPEN' ? 'primary' : 'default'}
-                        size="small"
-                      />
+                {tradeHistory.length > 0 ? (
+                  tradeHistory.map((trade) => (
+                    <TableRow key={trade.orderId}>
+                      <TableCell>{new Date(trade.entryTime).toLocaleString()}</TableCell>
+                      <TableCell>{trade.type}</TableCell>
+                      <TableCell>{trade.instrumentToken}</TableCell>
+                      <TableCell align="right">₹{trade.entryPrice}</TableCell>
+                      <TableCell align="right">
+                        {trade.exitTime ? new Date(trade.exitTime).toLocaleString() : '-'}
+                      </TableCell>
+                      <TableCell 
+                        align="right"
+                        sx={{ 
+                          color: trade.profitLoss > 0 ? 'success.main' : 
+                                 trade.profitLoss < 0 ? 'error.main' : 'text.primary'
+                        }}
+                      >
+                        {trade.profitLoss ? `₹${trade.profitLoss.toFixed(2)}` : '-'}
+                      </TableCell>
+                      <TableCell>
+                        <Chip 
+                          label={trade.status}
+                          color={getStatusColor(trade.status)}
+                          size="small"
+                          sx={{ minWidth: '80px' }}
+                        />
+                      </TableCell>
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={7} align="center">
+                      No trade history available
                     </TableCell>
                   </TableRow>
-                ))}
+                )}
               </TableBody>
             </Table>
           </TableContainer>
         </Card>
       </Box>
     );
+  };
+
+  const getStatusColor = (status) => {
+    switch (status?.toUpperCase()) {
+      case 'OPEN':
+        return 'primary';
+      case 'CLOSED':
+        return 'success';
+      case 'FAILED':
+        return 'error';
+      case 'PENDING':
+        return 'warning';
+      default:
+        return 'default';
+    }
   };
 
   return (
@@ -981,21 +1049,26 @@ function App() {
                 <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center' }}>
                   <Button
                     variant="contained"
-                    color="success"
-                    disabled={isTrading}
+                    color="primary"
                     onClick={handleStartTrading}
-                    sx={{ width: 120 }}
+                    disabled={tradingStatus.isTrading}
+                    startIcon={<ShowChart />}
                   >
-                    Start
+                    {tradingStatus.isTrading ? 'Trading in Progress' : 'Start Trading'}
                   </Button>
                   <Button
                     variant="contained"
-                    color="error"
-                    disabled={!isTrading}
                     onClick={handleStopTrading}
-                    sx={{ width: 120 }}
+                    disabled={tradingStatus.openTradesCount === 0}
+                    sx={{ 
+                      width: 120,
+                      backgroundColor: '#424242',
+                      '&:hover': {
+                        backgroundColor: '#616161'
+                      }
+                    }}
                   >
-                    Stop
+                    STOP
                   </Button>
                 </Box>
               </StyledPaper>
@@ -1007,21 +1080,29 @@ function App() {
                   Open Positions
                 </Typography>
                 <Grid container spacing={2}>
-                  {positions.map((position, index) => (
-                    <Grid item xs={12} sm={6} md={4} key={index}>
-                      <Paper sx={{ p: 2 }}>
-                        <Typography>
-                          {position.instrumentToken}
-                        </Typography>
-                        <Typography>
-                          Entry: ₹{position.entryPrice}
-                        </Typography>
-                        <Typography>
-                          Stop Loss: ₹{position.stopLoss}
-                        </Typography>
-                      </Paper>
+                  {positions.length > 0 ? (
+                    positions.map((position, index) => (
+                      <Grid item xs={12} sm={6} md={4} key={index}>
+                        <Paper sx={{ p: 2 }}>
+                          <Typography>
+                            {position.instrumentToken}
+                          </Typography>
+                          <Typography>
+                            Entry: ₹{position.entryPrice}
+                          </Typography>
+                          <Typography>
+                            Stop Loss: ₹{position.stopLoss}
+                          </Typography>
+                        </Paper>
+                      </Grid>
+                    ))
+                  ) : (
+                    <Grid item xs={12}>
+                      <Typography variant="body1" color="text.secondary" align="center">
+                        No open positions
+                      </Typography>
                     </Grid>
-                  ))}
+                  )}
                 </Grid>
               </StyledPaper>
             </Grid>
@@ -1081,28 +1162,29 @@ function App() {
                     </TableHead>
                     <TableBody>
                       {tradeHistory.map((trade) => (
-                        <TableRow key={trade.order_id}>
-                          <TableCell>{new Date(trade.entry_time).toLocaleString()}</TableCell>
-                          <TableCell>{trade.trade_type}</TableCell>
-                          <TableCell>{trade.instrument}</TableCell>
-                          <TableCell align="right">₹{trade.entry_price}</TableCell>
+                        <TableRow key={trade.orderId}>
+                          <TableCell>{new Date(trade.entryTime).toLocaleString()}</TableCell>
+                          <TableCell>{trade.type}</TableCell>
+                          <TableCell>{trade.instrumentToken}</TableCell>
+                          <TableCell align="right">₹{trade.entryPrice}</TableCell>
                           <TableCell align="right">
-                            {trade.exit_price ? `₹${trade.exit_price}` : '-'}
+                            {trade.exitTime ? new Date(trade.exitTime).toLocaleString() : '-'}
                           </TableCell>
                           <TableCell 
                             align="right"
                             sx={{ 
-                              color: trade.profit_loss > 0 ? 'success.main' : 
-                                     trade.profit_loss < 0 ? 'error.main' : 'text.primary'
+                              color: trade.profitLoss > 0 ? 'success.main' : 
+                                     trade.profitLoss < 0 ? 'error.main' : 'text.primary'
                             }}
                           >
-                            {trade.profit_loss ? `₹${trade.profit_loss.toFixed(2)}` : '-'}
+                            {trade.profitLoss ? `₹${trade.profitLoss.toFixed(2)}` : '-'}
                           </TableCell>
                           <TableCell>
                             <Chip 
                               label={trade.status}
-                              color={trade.status === 'OPEN' ? 'primary' : 'default'}
+                              color={getStatusColor(trade.status)}
                               size="small"
+                              sx={{ minWidth: '80px' }}
                             />
                           </TableCell>
                         </TableRow>
@@ -1123,6 +1205,10 @@ function App() {
 
             <Grid item xs={12} md={4}>
               <AlertsTimeline isMobile={isMobile} />
+            </Grid>
+
+            <Grid item xs={12} md={4}>
+              <TradingStatusCard status={tradingStatus} />
             </Grid>
           </Grid>
         )}

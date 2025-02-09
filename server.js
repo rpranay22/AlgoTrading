@@ -8,6 +8,7 @@ const http = require('http');
 const socketIO = require('socket.io');
 const cors = require('cors');
 const websocketService = require('./services/websocketService');
+const webhookRoutes = require('./routes/webhookRoutes');
 
 const app = express();
 const server = http.createServer(app);
@@ -30,6 +31,7 @@ app.use(express.urlencoded({ extended: true }));
 
 // Mount the routes
 app.use('/api', tradingRoutes);
+app.use('/webhook', webhookRoutes);
 
 // Add a basic route to redirect to login
 app.get('/', (req, res) => {
@@ -106,12 +108,11 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Initialize database and start server
-sequelize.sync()
+// Update the database sync
+sequelize.sync({ force: false }) // Be careful! This will drop existing tables
   .then(() => {
     server.listen(process.env.PORT || 3000, () => {
       logger.info('Server started', { port: process.env.PORT || 3000 });
-      logger.info('Visit http://localhost:' + (process.env.PORT || 3000) + '/api/login to authenticate');
     });
   })
   .catch((error) => {

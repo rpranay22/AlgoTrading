@@ -28,6 +28,7 @@
     "sequelize": "^6.6.5",
     "socket.io": "^4.8.1",
     "socket.io-client": "^4.8.1",
+    "umzug": "^3.8.2",
     "upstox-js-sdk": "^2.13.0",
     "winston": "^3.3.3",
     "ws": "^8.18.0"

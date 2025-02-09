@@ -7,30 +7,46 @@ const Trade = sequelize.define('Trade', {
     primaryKey: true,
     autoIncrement: true
   },
+  instrumentToken: {
+    type: DataTypes.STRING,
+    allowNull: false,
+    field: 'instrument_token'
+  },
   order_id: {
     type: DataTypes.STRING,
+    allowNull: false,
+    field: 'order_id'
+  },
+
+  type: {
+    type: DataTypes.STRING,
+    allowNull: false,
+    field: 'trade_type'
+  },
+  entry_strike: {
+    type: DataTypes.STRING,
+    allowNull: false,
+    field: 'entry_strike'
+  },
+  entryPrice: {
+    type: DataTypes.DECIMAL(10, 2),
+    allowNull: false,
+    field: 'entry_price'
+  },
+  stopLoss: {
+    type: DataTypes.DECIMAL(10, 2),
+    allowNull: false,
+    field: 'stop_loss'
+  },
+  quantity: {
+    type: DataTypes.INTEGER,
     allowNull: false
   },
-  instrument: {
+  status: {
     type: DataTypes.STRING,
     allowNull: false
   },
-  trade_type: {
-    type: DataTypes.STRING,  // 'CALL' or 'PUT'
-    allowNull: false
-  },
-  entry_price: {
-    type: DataTypes.DECIMAL(10, 2),
-    allowNull: false
-  },
-  exit_price: {
-    type: DataTypes.DECIMAL(10, 2),
-    allowNull: true
-  },
-  quantity: {
-    type: DataTypes.DECIMAL(10, 2),
-    allowNull: false
-  },
+  
   profit_loss: {
     type: DataTypes.DECIMAL(10, 2),
     allowNull: true
@@ -43,17 +59,25 @@ const Trade = sequelize.define('Trade', {
     type: DataTypes.DATE,
     allowNull: true
   },
-  status: {
-    type: DataTypes.STRING,  // 'OPEN', 'CLOSED'
-    allowNull: false
-  },
   exit_reason: {
     type: DataTypes.STRING,  // 'SL_HIT', 'TARGET_HIT', 'MANUAL'
     allowNull: true
+  },
+  execution_count: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    defaultValue: 1,
+    field: 'execution_count'
+  },
+  parent_trade_id: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    field: 'parent_trade_id'
   }
 }, {
-  timestamps: true,
-  tableName: 'trades'
+  tableName: 'trades',
+  underscored: true,
+  timestamps: true
 });
 
 module.exports = Trade; 

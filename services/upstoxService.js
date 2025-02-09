@@ -52,7 +52,6 @@ class UpstoxService {
       
       const tokenUrl = `${this.baseUrl}/login/authorization/token`;
       
-      // Create form data instead of JSON
       const formData = new URLSearchParams();
       formData.append('code', code);
       formData.append('client_id', this.apiKey);
@@ -73,17 +72,16 @@ class UpstoxService {
 
       this.accessToken = response.data.access_token;
       
-      // Connect WebSocket after getting token
-      await websocketService.connect(this.accessToken);
+      // Connect both WebSockets after getting token
+      await Promise.all([
+        websocketService.connect(this.accessToken),
+        websocketService.connectOrderStream(this.accessToken)
+      ]);
       
-      logger.info('Access token set successfully');
+      logger.info('Access token set and WebSockets connected successfully');
       return this.accessToken;
     } catch (error) {
-      logger.error('Error setting access token:', {
-        error: error.message,
-        response: error.response?.data,
-        status: error.response?.status
-      });
+      logger.error('Error setting access token:', error);
       throw error;
     }
   }
@@ -180,6 +178,24 @@ class UpstoxService {
     }
   }
 
+  async cancelAllOrders(){ 
+    try {
+      const response = await axios.delete(`${this.baseUrl}/order/multi/cancel`, {
+        headers: {
+          'Authorization': `Bearer ${this.accessToken}`,
+          'Api-Version': '2.0',
+          'Accept':'application/json'
+        }
+      });
+
+      return response.data.data;
+    } catch (error) {
+      logger.error('Error cancelling positions:', error);
+      throw error;
+    }
+
+  }  
+    
   async getPositions() {
     try {
       const response = await axios.get(`${this.baseUrl}/portfolio/short-term-positions`, {
